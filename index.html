@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siapa Selanjutnya? - Pengacak Nama Siswa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Nunito:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        h1, h2, .winner-text {
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        /* Animasi untuk hasil pemenang */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .winner-animate {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Animasi Confetti Sederhana */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+            z-index: 50;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+
+        /* Scrollbar custom untuk daftar siswa */
+        .student-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        .student-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .student-list::-webkit-scrollbar-thumb {
+            background: #c7c7c7;
+            border-radius: 4px;
+        }
+        .student-list::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col text-slate-800">
+
+    <!-- Navbar Sederhana -->
+    <nav class="bg-white shadow-sm p-4 sticky top-0 z-40">
+        <div class="max-w-md mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-2 text-indigo-600">
+                <i class="fas fa-graduation-cap text-2xl"></i>
+                <h1 class="text-xl font-bold tracking-wide">Siapa Selanjutnya?</h1>
+            </div>
+            <button onclick="confirmClearAll()" class="text-xs text-red-500 hover:text-red-700 font-semibold" title="Hapus semua data">
+                <i class="fas fa-trash-alt mr-1"></i> Reset Kelas
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-grow p-4 flex flex-col items-center max-w-md mx-auto w-full gap-6">
+
+        <!-- Area Hasil Acakan -->
+        <div class="w-full bg-white rounded-2xl shadow-lg p-8 text-center relative overflow-hidden min-h-[200px] flex flex-col justify-center items-center border border-indigo-50">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+            
+            <p class="text-slate-400 text-sm mb-2 uppercase tracking-wider font-bold">Siswa Terpilih</p>
+            
+            <div id="resultDisplay" class="text-4xl md:text-5xl font-bold text-slate-800 mb-2 min-h-[60px] flex items-center justify-center break-words w-full">
+                ???
+            </div>
+
+            <div id="loadingIndicator" class="hidden text-indigo-500 text-lg animate-pulse font-semibold">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Mengacak...
+            </div>
+        </div>
+
+        <!-- Tombol Aksi Utama -->
+        <div id="mainActionContainer" class="w-full">
+            <!-- Tombol Acak (Default) -->
+            <button onclick="pickRandom()" id="btnPick" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-indigo-200 text-xl flex items-center justify-center gap-2">
+                <i class="fas fa-random"></i> Acak Sekarang!
+            </button>
+
+            <!-- Opsi Pemenang (Muncul setelah acak) -->
+            <div id="winnerOptions" class="hidden w-full flex-col sm:flex-row gap-3 animate-fade-in-up">
+                <button onclick="keepWinner()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-4 px-6 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-redo"></i> Biarkan & Lanjut
+                </button>
+                <button onclick="removeWinner()" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-red-200 transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-user-minus"></i> Hapus Dia
+                </button>
+            </div>
+        </div>
+
+        <!-- Area Input Siswa -->
+        <div class="w-full bg-white rounded-xl shadow-md p-5 border border-slate-100">
+            <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                <i class="fas fa-user-plus text-indigo-500"></i> Tambah Siswa
+            </h2>
+            <div class="flex gap-2 mb-2">
+                <input type="text" id="nameInput" placeholder="Ketik nama siswa..." 
+                    class="flex-grow p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    onkeypress="handleEnter(event)">
+                <button onclick="addStudent()" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-lg transition-colors font-bold shadow-sm" title="Tambah Siswa">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            
+            <!-- Fitur Copy Paste Baru -->
+            <div class="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
+                <p class="text-xs text-slate-400 italic hidden sm:block">*Tekan Enter untuk menambah</p>
+                <button onclick="openImportModal()" class="text-xs sm:text-sm font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-2 rounded-lg hover:bg-indigo-100 transition-colors ml-auto flex items-center gap-1">
+                    <i class="fas fa-file-import"></i> Copy-Paste Banyak
+                </button>
+            </div>
+        </div>
+
+        <!-- Daftar Siswa -->
+        <div class="w-full bg-white rounded-xl shadow-md p-5 border border-slate-100 flex-grow flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-lg font-bold text-slate-700">
+                    <i class="fas fa-users text-indigo-500 mr-1"></i> Daftar Kelas
+                </h2>
+                <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full" id="countBadge">0 Siswa</span>
+            </div>
+            
+            <div id="emptyState" class="text-center py-8 text-slate-400 flex flex-col items-center">
+                <i class="fas fa-clipboard-list text-4xl mb-2 opacity-30"></i>
+                <p>Belum ada siswa.</p>
+                <p class="text-sm">Tambahkan nama di atas.</p>
+            </div>
+
+            <ul id="studentList" class="student-list overflow-y-auto max-h-[300px] space-y-2 pr-1 hidden">
+                <!-- List items will be injected here -->
+            </ul>
+        </div>
+
+    </main>
+
+    <footer class="p-4 text-center text-slate-400 text-xs">
+        &copy; 2024 Aplikasi Guru Pintar
+    </footer>
+
+    <!-- MODAL KONFIRMASI -->
+    <div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100 border-2 border-slate-100">
+            <div class="text-center mb-4">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800" id="modalTitle">Konfirmasi Hapus</h3>
+                <p id="modalMessage" class="text-sm text-slate-500 mt-2">Apakah Anda yakin ingin menghapus data ini?</p>
+            </div>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                    Batal
+                </button>
+                <button id="modalConfirmBtn" class="flex-1 px-4 py-2 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 shadow-md shadow-red-200 transition-colors">
+                    Ya, Hapus
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL IMPORT (Fitur Baru) -->
+    <div id="importModalOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border-2 border-indigo-50 flex flex-col h-[80vh] md:h-[500px]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fas fa-paste text-indigo-500 mr-2"></i>Paste Daftar Nama</h3>
+                <button onclick="closeImportModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="bg-indigo-50 border border-indigo-100 p-3 rounded-lg mb-3">
+                <p class="text-xs text-indigo-700 flex items-start gap-2">
+                    <i class="fas fa-info-circle mt-0.5"></i>
+                    <span>Salin nama siswa dari Excel, Word, atau Notepad lalu tempel di bawah ini (satu baris satu nama).</span>
+                </p>
+            </div>
+            <textarea id="importTextarea" class="flex-grow w-full p-4 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 mb-4 resize-none text-sm font-medium" placeholder="Andi&#10;Budi&#10;Citra&#10;Dewi..."></textarea>
+            <div class="flex gap-3">
+                <button onclick="closeImportModal()" class="flex-1 px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                    Batal
+                </button>
+                <button onclick="processImport()" class="flex-1 px-4 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-colors">
+                    <i class="fas fa-save mr-1"></i> Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PERINGATAN (ALERT) -->
+    <div id="alertOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl transform transition-all border-2 border-indigo-50">
+            <div class="text-center mb-4">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
+                    <i class="fas fa-info text-indigo-600 text-xl"></i>
+                </div>
+                <p id="alertMessage" class="text-slate-700 font-medium">Pesan</p>
+            </div>
+            <button onclick="closeAlert()" class="w-full px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">
+                Oke, Mengerti
+            </button>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION (Indikator Penyimpanan) -->
+    <div id="toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg text-sm font-semibold transition-all duration-300 opacity-0 translate-y-10 z-50 flex items-center gap-2 pointer-events-none">
+        <i class="fas fa-check-circle text-green-400 text-lg"></i>
+        <span>Data tersimpan otomatis</span>
+    </div>
+
+    <script>
+        // State Aplikasi
+        let students = [];
+        let currentWinnerIndex = -1; // Menyimpan index pemenang saat ini
+        const storageKey = 'app_guru_siswa_list';
+
+        // DOM Elements
+        const nameInput = document.getElementById('nameInput');
+        const studentListEl = document.getElementById('studentList');
+        const emptyStateEl = document.getElementById('emptyState');
+        const countBadge = document.getElementById('countBadge');
+        const resultDisplay = document.getElementById('resultDisplay');
+        const btnPick = document.getElementById('btnPick');
+        const winnerOptions = document.getElementById('winnerOptions'); // Container opsi pemenang
+        
+        // Modal Elements
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        let pendingAction = null; 
+
+        // Import Modal Elements
+        const importModalOverlay = document.getElementById('importModalOverlay');
+        const importTextarea = document.getElementById('importTextarea');
+
+        // Alert & Toast Elements
+        const alertOverlay = document.getElementById('alertOverlay');
+        const alertMessage = document.getElementById('alertMessage');
+        const toast = document.getElementById('toast');
+        let toastTimeout;
+
+        // Memuat data saat aplikasi dibuka
+        window.onload = function() {
+            const savedData = localStorage.getItem(storageKey);
+            if (savedData) {
+                try {
+                    students = JSON.parse(savedData);
+                } catch (e) {
+                    students = [];
+                }
+                renderList();
+            }
+            nameInput.focus();
+        };
+
+        // --- SISTEM MODAL BARU ---
+        function showModal(message, actionCallback) {
+            modalMessage.innerText = message;
+            pendingAction = actionCallback;
+            modalOverlay.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            modalOverlay.classList.add('hidden');
+            pendingAction = null;
+        }
+
+        modalConfirmBtn.onclick = function() {
+            if (pendingAction) {
+                pendingAction();
+            }
+            closeModal();
+        };
+
+        function showAlert(message) {
+            alertMessage.innerText = message;
+            alertOverlay.classList.remove('hidden');
+        }
+
+        function closeAlert() {
+            alertOverlay.classList.add('hidden');
+        }
+
+        // --- SISTEM IMPORT (BARU) ---
+        function openImportModal() {
+            importModalOverlay.classList.remove('hidden');
+            importTextarea.value = '';
+            setTimeout(() => importTextarea.focus(), 100);
+        }
+
+        function closeImportModal() {
+            importModalOverlay.classList.add('hidden');
+        }
+
+        function processImport() {
+            const rawText = importTextarea.value;
+            if (!rawText.trim()) {
+                closeImportModal();
+                return;
+            }
+
+            const lines = rawText.split(/\r?\n/);
+            let addedCount = 0;
+
+            lines.forEach(line => {
+                const name = line.trim();
+                if (name) {
+                    const formattedName = name.replace(/\b\w/g, l => l.toUpperCase());
+                    students.push(formattedName);
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                saveData();
+                renderList();
+                closeImportModal();
+                setTimeout(() => {
+                    showAlert(`Berhasil menambahkan ${addedCount} siswa baru!`);
+                }, 300);
+            } else {
+                closeImportModal();
+            }
+        }
+
+        // --- LOGIKA UTAMA ---
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') {
+                addStudent();
+            }
+        }
+
+        function addStudent() {
+            const name = nameInput.value.trim();
+            if (name) {
+                const formattedName = name.replace(/\b\w/g, l => l.toUpperCase());
+                students.push(formattedName);
+                saveData();
+                renderList();
+                nameInput.value = '';
+                
+                nameInput.classList.add('ring-2', 'ring-green-400', 'border-transparent');
+                setTimeout(() => nameInput.classList.remove('ring-2', 'ring-green-400', 'border-transparent'), 200);
+            }
+            nameInput.focus();
+        }
+
+        function confirmDeleteStudent(index) {
+            showModal(`Hapus "${students[index]}" dari daftar?`, () => {
+                students.splice(index, 1);
+                saveData();
+                renderList();
+            });
+        }
+
+        function confirmClearAll() {
+            if (students.length === 0) return;
+            showModal('Apakah Anda yakin ingin menghapus SEMUA nama siswa?', () => {
+                students = [];
+                saveData();
+                renderList();
+                resetView();
+            });
+        }
+
+        function saveData() {
+            localStorage.setItem(storageKey, JSON.stringify(students));
+            showToast();
+        }
+
+        function showToast() {
+            // Reset animasi jika toast dipanggil beruntun
+            clearTimeout(toastTimeout);
+            toast.classList.remove('opacity-0', 'translate-y-10');
+            
+            // Sembunyikan setelah 2 detik
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-10');
+            }, 2000);
+        }
+
+        function renderList() {
+            studentListEl.innerHTML = '';
+            countBadge.innerText = `${students.length} Siswa`;
+
+            if (students.length === 0) {
+                emptyStateEl.classList.remove('hidden');
+                studentListEl.classList.add('hidden');
+            } else {
+                emptyStateEl.classList.add('hidden');
+                studentListEl.classList.remove('hidden');
+
+                students.forEach((student, index) => {
+                    const li = document.createElement('li');
+                    li.className = "bg-white border border-slate-200 p-3 rounded-lg flex justify-between items-center group hover:shadow-sm transition-shadow";
+                    li.innerHTML = `
+                        <span class="font-medium text-slate-700 w-full truncate cursor-default" title="${student}">${index + 1}. ${student}</span>
+                        <button onclick="confirmDeleteStudent(${index})" class="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all p-2 h-8 w-8 flex items-center justify-center">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    `;
+                    studentListEl.appendChild(li);
+                });
+            }
+        }
+
+        // --- Logika Mengacak & Opsi Pemenang ---
+        let isSpinning = false;
+
+        function pickRandom() {
+            if (isSpinning) return;
+            if (students.length === 0) {
+                showAlert("Daftar siswa kosong! Tambahkan nama terlebih dahulu.");
+                return;
+            }
+            
+            // Reset UI sebelum mulai acak
+            resetView();
+
+            if (students.length === 1) {
+                finalizeChoice(0);
+                return;
+            }
+
+            isSpinning = true;
+            btnPick.disabled = true;
+            btnPick.classList.add('opacity-75', 'cursor-not-allowed');
+            
+            resultDisplay.classList.add('text-slate-400');
+            
+            let counter = 0;
+            const totalShuffles = 20;
+            
+            const shuffleInterval = setInterval(() => {
+                const randomIndex = Math.floor(Math.random() * students.length);
+                resultDisplay.innerText = students[randomIndex];
+                counter++;
+
+                if (counter >= totalShuffles) {
+                    clearInterval(shuffleInterval);
+                    // Tentukan pemenang di sini
+                    const winnerIndex = Math.floor(Math.random() * students.length);
+                    finalizeChoice(winnerIndex);
+                }
+            }, 80);
+        }
+
+        function finalizeChoice(index) {
+            currentWinnerIndex = index;
+            const winnerName = students[index];
+            showWinner(winnerName);
+        }
+
+        function showWinner(name) {
+            resultDisplay.innerText = name;
+            resultDisplay.classList.remove('text-slate-400');
+            resultDisplay.classList.add('text-indigo-600', 'winner-animate');
+            createConfetti();
+
+            isSpinning = false;
+            
+            // Sembunyikan tombol acak, tampilkan opsi
+            btnPick.classList.add('hidden');
+            btnPick.disabled = false;
+            btnPick.classList.remove('opacity-75', 'cursor-not-allowed');
+            winnerOptions.classList.remove('hidden');
+            winnerOptions.classList.add('flex');
+        }
+
+        // Fungsi untuk tombol "Biarkan"
+        function keepWinner() {
+            resetView();
+        }
+
+        // Fungsi untuk tombol "Hapus Dia"
+        function removeWinner() {
+            if (currentWinnerIndex > -1 && currentWinnerIndex < students.length) {
+                const removedName = students[currentWinnerIndex];
+                students.splice(currentWinnerIndex, 1);
+                saveData();
+                renderList();
+                
+                // Tampilkan pesan feedback kecil (opsional) atau langsung reset
+                resetView();
+                
+                // Jika list habis, reset tampilan display
+                if (students.length === 0) {
+                   resultDisplay.innerText = "???";
+                   resultDisplay.classList.remove('text-indigo-600', 'winner-animate');
+                   resultDisplay.classList.add('text-slate-800');
+                }
+            }
+        }
+
+        function resetView() {
+            // Reset tampilan tombol kembali ke "Acak Sekarang"
+            btnPick.classList.remove('hidden');
+            winnerOptions.classList.add('hidden');
+            winnerOptions.classList.remove('flex');
+            currentWinnerIndex = -1;
+        }
+
+        function createConfetti() {
+            const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b'];
+            for (let i = 0; i < 50; i++) {
+                const conf = document.createElement('div');
+                conf.classList.add('confetti');
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.animationDuration = (Math.random() * 2 + 1) + 's';
+                conf.style.top = '-10px';
+                document.body.appendChild(conf);
+                setTimeout(() => { conf.remove(); }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
